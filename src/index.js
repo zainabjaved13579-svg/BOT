@@ -61,15 +61,22 @@ const giveawayTimers = new Map();
 
 async function hasCommandAccess(interaction, commandName) {
   if (interaction.user.id === interaction.guild?.ownerId) return true;
-  const { rows } = await pool.query(
-    'SELECT role_id FROM command_roles WHERE guild_id = $1 AND command_name = $2',
-    [interaction.guildId, commandName]
-  );
+  const [{ rows: roleRows }, { rows: userRows }] = await Promise.all([
+    pool.query(
+      'SELECT role_id FROM command_roles WHERE guild_id = $1 AND command_name = $2',
+      [interaction.guildId, commandName]
+    ),
+    pool.query(
+      'SELECT user_id FROM command_users WHERE guild_id = $1 AND command_name = $2',
+      [interaction.guildId, commandName]
+    )
+  ]);
+  if (userRows.some(({ user_id: userId }) => userId === interaction.user.id)) return true;
   return isCommandAuthorized(
     interaction.user.id,
     interaction.guild?.ownerId,
     interaction.member?.roles?.cache?.keys() || [],
-    rows.map(({ role_id: roleId }) => roleId)
+    roleRows.map(({ role_id: roleId }) => roleId)
   );
 }
 
@@ -178,7 +185,7 @@ function createCommandGuideEmbed() {
     .setColor(0x7564d8)
     .setTitle(`${client.user.username} — Commands`)
     .setDescription(`Here are all my commands:\n\n${commandList}`)
-    .setFooter({ text: 'The server owner and roles granted /clear access can use /clear. Slash commands may take a short time to appear.' });
+    .setFooter({ text: 'The server owner can grant command access to roles or individual members with /permissions.' });
 }
 
 function createCommandGuideText() {
@@ -205,7 +212,7 @@ function createCommandGuideText() {
     '',
     ...commandList,
     '',
-    'Note: /clear is restricted to the server owner and roles granted /clear access, asks for confirmation, and posts a public completion notice.'
+    'Note: restricted commands require server-owner access, a direct member grant, or an authorized role. The server owner manages grants with /permissions.'
   ].join('\n');
 }
 
@@ -548,33 +555,50 @@ async function handleManagementCommand(interaction, commandName) {
 
   if (commandName === 'permissions') {
     if (interaction.user.id !== interaction.guild.ownerId) {
-      await replyWithEmbed(interaction, 'Owner only', 'Only this server owner can grant or revoke command roles.', { ephemeral: true });
+      await replyWithEmbed(interaction, 'Owner only', 'Only this server owner can grant or revoke command access.', { ephemeral: true });
       return;
     }
     const command = interaction.options.getString('command');
     const role = interaction.options.getRole('role');
+    const member = interaction.options.getUser('member');
+    if (Boolean(role) === Boolean(member)) {
+      await replyWithEmbed(interaction, 'Choose one target', 'Select exactly one role or member to grant or revoke access.', { ephemeral: true });
+      return;
+    }
+    const target = role || member;
+    const targetName = role ? `${role}` : `**${member.tag}**`;
     if (subcommand === 'grant') {
-      await pool.query(
-        'INSERT INTO command_roles (guild_id, command_name, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-        [interaction.guildId, command, role.id]
-      );
-      await replyWithEmbed(interaction, 'Permission granted', `${role} can now use \`/${command}\` management commands.`, { ephemeral: true });
+      if (role) {
+        await pool.query(
+          'INSERT INTO command_roles (guild_id, command_name, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          [interaction.guildId, command, role.id]
+        );
+      } else {
+        await pool.query(
+          'INSERT INTO command_users (guild_id, command_name, user_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          [interaction.guildId, command, member.id]
+        );
+      }
+      await replyWithEmbed(interaction, 'Permission granted', `${targetName} can now use \`/${command}\`.`, { ephemeral: true });
     } else {
-      await pool.query(
-        'DELETE FROM command_roles WHERE guild_id = $1 AND command_name = $2 AND role_id = $3',
-        [interaction.guildId, command, role.id]
-      );
-      await replyWithEmbed(interaction, 'Permission removed', `Removed ${role}'s access to \`/${command}\`.`, { ephemeral: true });
+      if (role) {
+        await pool.query(
+          'DELETE FROM command_roles WHERE guild_id = $1 AND command_name = $2 AND role_id = $3',
+          [interaction.guildId, command, role.id]
+        );
+      } else {
+        await pool.query(
+          'DELETE FROM command_users WHERE guild_id = $1 AND command_name = $2 AND user_id = $3',
+          [interaction.guildId, command, member.id]
+        );
+      }
+      await replyWithEmbed(interaction, 'Permission removed', `Removed ${targetName}'s access to \`/${command}\`.`, { ephemeral: true });
     }
     return;
   }
 
   if (commandName === 'ticket') {
     if (subcommand === 'panel') {
-      if (interaction.user.id !== interaction.guild.ownerId) {
-        await replyWithEmbed(interaction, 'Owner only', 'Only this server owner can post the ticket panel.', { ephemeral: true });
-        return;
-      }
       const channel = interaction.options.getChannel('channel');
       if (!channel.isTextBased()) {
         await replyWithEmbed(interaction, 'Invalid channel', 'Choose a text channel.', { ephemeral: true });
@@ -754,10 +778,6 @@ async function handleManagementCommand(interaction, commandName) {
   }
 
   if (commandName === 'autorole') {
-    if (interaction.user.id !== interaction.guild.ownerId) {
-      await replyWithEmbed(interaction, 'Owner only', 'Only the server owner can configure the automatic role.', { ephemeral: true });
-      return;
-    }
     if (subcommand === 'disable') {
       await updateGuildSettings(interaction.guildId, { auto_role_id: null });
       await replyWithEmbed(interaction, 'Automatic role disabled', 'New members will no longer receive an automatic role.', { ephemeral: true });
@@ -1135,7 +1155,7 @@ async function handleInteraction(interaction) {
         `${client.user.username} • Command Guide`,
         createCommandGuideText(),
         interaction.user
-      ).setFooter({ text: 'The server owner or a role granted /clear access can use /clear.' });
+      ).setFooter({ text: 'Restricted commands can be granted to a role or individual member by the server owner.' });
       await interaction.user.send({ embeds: [guide] });
       await replyWithEmbed(interaction, 'Command guide sent', 'I sent you a direct message with the command guide.', { ephemeral: true });
     } catch (error) {
@@ -1164,10 +1184,7 @@ async function handleInteraction(interaction) {
   }
 
   if (commandName === 'refresh') {
-    if (interaction.user.id !== interaction.guild.ownerId) {
-      await replyWithEmbed(interaction, 'Owner only', 'Only this server’s owner can refresh slash commands.', { ephemeral: true });
-      return;
-    }
+    if (!(await requireCommandAccess(interaction, 'refresh'))) return;
 
     await interaction.deferReply({ ephemeral: true });
     const [globalCommands, guildCommands] = await Promise.all([
@@ -1245,7 +1262,8 @@ async function handleInteraction(interaction) {
       : commandName === 'ban'
         ? PermissionFlagsBits.BanMembers
         : PermissionFlagsBits.ManageNicknames;
-    if (!interaction.memberPermissions?.has(requiredPermission)) {
+    const hasConfiguredAccess = await hasCommandAccess(interaction, commandName);
+    if (!hasConfiguredAccess && !interaction.memberPermissions?.has(requiredPermission)) {
       await replyWithEmbed(interaction, 'Missing permission', `You need the ${commandName === 'nick' ? 'Manage Nicknames' : commandName === 'kick' ? 'Kick Members' : 'Ban Members'} permission to use this command.`, { ephemeral: true });
       return;
     }
