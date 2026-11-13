@@ -10,12 +10,14 @@
     "test": "node --test"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   },
   "dependencies": {
+    "@discordjs/voice": "^0.19.2",
     "discord.js": "^14.19.3",
     "dotenv": "^16.4.7",
     "pg": "^8.13.3",
-    "pg-mem": "^3.0.5"
+    "pg-mem": "^3.0.5",
+    "play-dl": "^1.9.7"
   }
 }
