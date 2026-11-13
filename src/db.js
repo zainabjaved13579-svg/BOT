@@ -27,8 +27,24 @@ async function initializeDatabase() {
       ticket_category_id TEXT,
       ticket_staff_role_id TEXT,
       application_channel_id TEXT,
-      application_questions JSONB NOT NULL DEFAULT '[]'::jsonb
+      application_questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+      application_review_channel_id TEXT,
+      application_staff_role_id TEXT,
+      transcript_channel_id TEXT,
+      moderation_log_channel_id TEXT,
+      auto_role_id TEXT,
+      links_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      scamguard_channel_id TEXT,
+      scamguard_terms JSONB NOT NULL DEFAULT '[]'::jsonb
     );
+    ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS application_review_channel_id TEXT;
+    ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS application_staff_role_id TEXT;
+    ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS transcript_channel_id TEXT;
+    ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS moderation_log_channel_id TEXT;
+    ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS auto_role_id TEXT;
+    ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS links_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS scamguard_channel_id TEXT;
+    ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS scamguard_terms JSONB NOT NULL DEFAULT '[]'::jsonb;
     CREATE TABLE IF NOT EXISTS command_roles (
       guild_id TEXT NOT NULL,
       command_name TEXT NOT NULL,
@@ -47,6 +63,12 @@ async function initializeDatabase() {
       PRIMARY KEY (guild_id, user_id)
     );
     CREATE TABLE IF NOT EXISTS auto_replies (
+      guild_id TEXT NOT NULL,
+      keyword TEXT NOT NULL,
+      response TEXT NOT NULL,
+      PRIMARY KEY (guild_id, keyword)
+    );
+    CREATE TABLE IF NOT EXISTS triggers (
       guild_id TEXT NOT NULL,
       keyword TEXT NOT NULL,
       response TEXT NOT NULL,
@@ -73,6 +95,34 @@ async function initializeDatabase() {
     ALTER TABLE tickets ADD COLUMN IF NOT EXISTS claimed_by TEXT;
     ALTER TABLE tickets ADD COLUMN IF NOT EXISTS application_questions JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE tickets ADD COLUMN IF NOT EXISTS question_index INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS ticket_themes (
+      guild_id TEXT NOT NULL,
+      theme_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      description TEXT NOT NULL,
+      questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+      PRIMARY KEY (guild_id, theme_key)
+    );
+    CREATE TABLE IF NOT EXISTS ticket_blocked_roles (
+      guild_id TEXT NOT NULL,
+      role_id TEXT NOT NULL,
+      PRIMARY KEY (guild_id, role_id)
+    );
+    CREATE TABLE IF NOT EXISTS giveaways (
+      id TEXT PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      host_id TEXT NOT NULL,
+      prize TEXT NOT NULL,
+      winner_count INTEGER NOT NULL DEFAULT 1,
+      ends_at TIMESTAMPTZ NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open'
+    );
+    CREATE TABLE IF NOT EXISTS giveaway_entries (
+      giveaway_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      PRIMARY KEY (giveaway_id, user_id)
+    );
     CREATE INDEX IF NOT EXISTS member_stats_leaderboard_idx
       ON member_stats (guild_id, xp DESC);
   `);
