@@ -10,6 +10,11 @@ const permissionChoices = [
   ['trigger', 'trigger'],
   ['scam guard', 'scamguard'],
   ['moderation logs', 'logs'],
+  ['auto role', 'autorole'],
+  ['refresh commands', 'refresh'],
+  ['kick members', 'kick'],
+  ['ban members', 'ban'],
+  ['manage nicknames', 'nick'],
   ['announcements', 'say'],
   ['giveaways', 'giveaway'],
   ['clear', 'clear']
@@ -21,7 +26,7 @@ const commands = [
     .setDescription('Check whether the bot and its database are responding.'),
   new SlashCommandBuilder()
     .setName('refresh')
-    .setDescription('Refresh slash commands for this server (server owner only).'),
+    .setDescription('Refresh slash commands for this server (owner or permission-granted member).'),
   new SlashCommandBuilder()
     .setName('profile')
     .setDescription('View a server member profile and level.')
@@ -61,13 +66,15 @@ const commands = [
       .addRoleOption(option => option.setName('staff_role').setDescription('Role to grant when an application is accepted'))),
   new SlashCommandBuilder()
     .setName('permissions')
-    .setDescription('Grant or remove a role for a management command.')
-    .addSubcommand(sub => sub.setName('grant').setDescription('Authorize a role for a command.')
+    .setDescription('Grant or remove command access for a role or member (server owner only).')
+    .addSubcommand(sub => sub.setName('grant').setDescription('Authorize a role or member for a command.')
       .addStringOption(option => option.setName('command').setDescription('Command to grant').setRequired(true).addChoices(...permissionChoices))
-      .addRoleOption(option => option.setName('role').setDescription('Role to authorize').setRequired(true)))
-    .addSubcommand(sub => sub.setName('revoke').setDescription('Remove a role authorization.')
+      .addRoleOption(option => option.setName('role').setDescription('Role to authorize'))
+      .addUserOption(option => option.setName('member').setDescription('Member to authorize')))
+    .addSubcommand(sub => sub.setName('revoke').setDescription('Remove a role or member authorization.')
       .addStringOption(option => option.setName('command').setDescription('Command to revoke').setRequired(true).addChoices(...permissionChoices))
-      .addRoleOption(option => option.setName('role').setDescription('Role to remove').setRequired(true))),
+      .addRoleOption(option => option.setName('role').setDescription('Role to remove'))
+      .addUserOption(option => option.setName('member').setDescription('Member to remove'))),
   new SlashCommandBuilder()
     .setName('automod')
     .setDescription('Configure abuse detection and link filtering.')
