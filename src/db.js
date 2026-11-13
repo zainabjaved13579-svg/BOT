@@ -51,6 +51,12 @@ async function initializeDatabase() {
       role_id TEXT NOT NULL,
       PRIMARY KEY (guild_id, command_name, role_id)
     );
+    CREATE TABLE IF NOT EXISTS command_users (
+      guild_id TEXT NOT NULL,
+      command_name TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      PRIMARY KEY (guild_id, command_name, user_id)
+    );
     CREATE TABLE IF NOT EXISTS automod_terms (
       guild_id TEXT NOT NULL,
       term TEXT NOT NULL,
