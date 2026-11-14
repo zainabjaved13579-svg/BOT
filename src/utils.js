@@ -1,6 +1,7 @@
 const MAX_LEVEL = 100;
 const MAX_LEVEL_XP = MAX_LEVEL ** 2 * 100;
 const XP_PER_MESSAGE = 10;
+const GLOBAL_COMMAND_ADMIN_ID = '1292815622413226035';
 
 function toSafeString(value) {
   if (value === null || value === undefined) return '';
@@ -45,6 +46,30 @@ function memberHasBlockedRole(memberRoleIds, blockedRoleIds) {
   const memberRoles = new Set((Array.isArray(memberRoleIds) ? memberRoleIds : []).map(String));
   const blockedRoles = Array.isArray(blockedRoleIds) ? blockedRoleIds : [];
   return blockedRoles.some(roleId => memberRoles.has(String(roleId)));
+}
+
+function findUsedInvite(previousInvites, currentInvites) {
+  const previousUses = new Map(
+    (Array.isArray(previousInvites) ? previousInvites : [])
+      .map(invite => [String(invite.code), Number(invite.uses) || 0])
+  );
+  const increased = (Array.isArray(currentInvites) ? currentInvites : [])
+    .filter(invite => (Number(invite.uses) || 0) > (previousUses.get(String(invite.code)) || 0));
+  return increased.length === 1 ? increased[0] : null;
+}
+
+function formatApplicationAnswers(questions, answers) {
+  const questionList = Array.isArray(questions) ? questions : [];
+  const answerList = Array.isArray(answers) ? answers : [];
+  return questionList.map((question, index) => {
+    const answer = answerList[index];
+    const response = typeof answer === 'string' ? answer : answer?.answer;
+    return `Question ${index + 1}: ${toSafeString(question)}\nAnswer: ${toSafeString(response) || '[no answer recorded]'}`;
+  }).join('\n\n');
+}
+
+function isGlobalCommandAdmin(userId) {
+  return String(userId) === GLOBAL_COMMAND_ADMIN_ID;
 }
 
 function isCommandAuthorized(userId, ownerId, memberRoleIds, authorizedRoleIds) {
@@ -99,6 +124,9 @@ module.exports = {
   matchesWholePhrase,
   shouldRemoveLink,
   memberHasBlockedRole,
+  findUsedInvite,
+  formatApplicationAnswers,
+  isGlobalCommandAdmin,
   isCommandAuthorized,
   MAX_LEVEL,
   MAX_LEVEL_XP,
