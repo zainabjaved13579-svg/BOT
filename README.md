@@ -8,7 +8,7 @@ A configurable Discord community bot with ticket workflows, moderation, member p
 2. Set `DISCORD_TOKEN` and `CLIENT_ID`.
 3. Set `DATABASE_URL` to a persistent PostgreSQL database for production. `PGSSL=true` enables PostgreSQL TLS for hosts that require it.
 4. Run `npm start`. The bot initializes its database tables and registers slash commands when it starts.
-5. Enable the **Server Members Intent**, **Message Content Intent**, and **Guild Invites intent** in the Discord Developer Portal. Grant the bot the permissions required for the features you enable, including Manage Server for invite tracking, Manage Messages, Manage Roles, moderation permissions, and voice Connect/Speak as needed.
+5. Enable the **Server Members Intent**, **Message Content Intent**, and **Guild Invites intent** in the Discord Developer Portal. Grant the bot the permissions required for the features you enable, including Manage Server for invite tracking, Attach Files in transcript/review channels, Manage Messages, Manage Roles, moderation permissions, and voice Connect/Speak as needed.
 
 Without `DATABASE_URL`, the bot uses temporary in-memory storage; settings, tickets, XP, and giveaway data will not persist across restarts.
 
@@ -27,6 +27,6 @@ Without `DATABASE_URL`, the bot uses temporary in-memory storage; settings, tick
 - `/clear` asks for confirmation and posts a completion notice.
 - `/commands` sends a command guide by direct message.
 
-Use `/application setup` to post the staff application panel, then set the application review and transcript channels with `/ticket settings`. After the applicant answers everything, the ticket closes and the review channel receives the question-and-answer file with Accept/Reject buttons. The applicant gets a DM with the decision; the review card is updated in the selected review channel. Configure a staff role there too if accepted applicants should receive one automatically.
+Use `/application setup` to post the staff application panel and select its review channel, then set the transcript archive with `/ticket settings`. After the applicant answers everything, the ticket closes and the review channel gets a PDF and text copy of the questions and answers, with the applicant mentioned and Accept/Reject buttons. The archive receives a PDF and full text transcript. The applicant gets a DM with the decision; the review card is updated in the selected channel. Configure a staff role if accepted applicants should receive one automatically.
 
 Use `/commands` for a paginated, plain-language command guide in your DMs. The server owner or configured global command admin can use `/permissions grant` or `/permissions revoke` to manage command access by role or individual member.
