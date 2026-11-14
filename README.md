@@ -1,6 +1,6 @@
-# Sapphire Community Bot
+# Hawk Client
 
-A configurable Discord community bot with ticket workflows, moderation, member profiles, giveaways, and voice playback.
+Hawk Client is a configurable Discord community bot with ticket workflows, moderation, member profiles, giveaways, and voice playback.
 
 ## Run locally or on Railway
 
