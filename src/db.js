@@ -96,11 +96,13 @@ async function initializeDatabase() {
       claimed_by TEXT,
       application_questions JSONB NOT NULL DEFAULT '[]'::jsonb,
       question_index INTEGER NOT NULL DEFAULT 0,
+      application_answers JSONB NOT NULL DEFAULT '[]'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     ALTER TABLE tickets ADD COLUMN IF NOT EXISTS claimed_by TEXT;
     ALTER TABLE tickets ADD COLUMN IF NOT EXISTS application_questions JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE tickets ADD COLUMN IF NOT EXISTS question_index INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE tickets ADD COLUMN IF NOT EXISTS application_answers JSONB NOT NULL DEFAULT '[]'::jsonb;
     CREATE TABLE IF NOT EXISTS ticket_themes (
       guild_id TEXT NOT NULL,
       theme_key TEXT NOT NULL,
@@ -129,8 +131,25 @@ async function initializeDatabase() {
       user_id TEXT NOT NULL,
       PRIMARY KEY (giveaway_id, user_id)
     );
+    CREATE TABLE IF NOT EXISTS invite_snapshots (
+      guild_id TEXT NOT NULL,
+      invite_code TEXT NOT NULL,
+      inviter_id TEXT,
+      uses INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (guild_id, invite_code)
+    );
+    CREATE TABLE IF NOT EXISTS invite_joins (
+      id TEXT PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      member_id TEXT NOT NULL,
+      inviter_id TEXT,
+      invite_code TEXT,
+      joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
     CREATE INDEX IF NOT EXISTS member_stats_leaderboard_idx
       ON member_stats (guild_id, xp DESC);
+    CREATE INDEX IF NOT EXISTS invite_joins_inviter_idx
+      ON invite_joins (guild_id, inviter_id);
   `);
 }
 
