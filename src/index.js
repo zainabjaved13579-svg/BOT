@@ -24,6 +24,7 @@
   const { randomInt, randomUUID } = require('node:crypto');
   const { pool, initializeDatabase, getGuildSettings, updateGuildSettings } = require('./db');
   const { createTextEmbed } = require('./embeds');
+  const { createPdfBuffer } = require('./pdf');
   const {
     applyTemplate,
     findUsedInvite,
@@ -45,6 +46,7 @@
   const commandSchemas = require('./commands');
 
   const required = ['DISCORD_TOKEN', 'CLIENT_ID'];
+  const botName = 'Hawk Client';
   for (const key of required) {
     if (!process.env[key]) throw new Error(`${key} is required.`);
   }
@@ -206,7 +208,7 @@
     );
     const embed = new EmbedBuilder()
       .setColor(0x7564d8)
-      .setAuthor({ name: 'Sapphire Community • Support Centre', iconURL: client.user.displayAvatarURL() })
+      .setAuthor({ name: 'Hawk Client • Support Centre', iconURL: client.user.displayAvatarURL() })
       .setTitle('How can we help you today?')
       .setDescription([
         'Our team is here to help. Select the option that best matches your request and a private ticket will be created.',
@@ -273,12 +275,12 @@
       });
     });
     const intro = [
-      `${client.user.username} — COMMAND GUIDE`,
+      `${botName} — COMMAND GUIDE`,
       'HOW TO USE',
       'In a server channel, type / and choose a command. Fill in options marked required; options in [brackets] are optional.',
       'Examples: /profile • /invites check • /invites leaderboard',
       'Application setup: /application setup posts the form and sets its review channel. Use /ticket settings to choose a transcript archive and staff access.',
-      'Completed applications are closed; staff review the attached question-and-answer file with Accept/Reject buttons. The applicant is notified by DM.',
+      'Completed applications are closed; the review channel gets a PDF/text Q&A copy with the applicant pinged and Accept/Reject buttons. The applicant is notified by DM.',
       'Invite counts need the bot to have Manage Server and the Guild Invites intent enabled.',
       '',
       'COMMANDS'
@@ -288,7 +290,7 @@
     for (const line of commandList) {
       if (page.length + line.length + 1 > 3500) {
         pages.push(page);
-        page = `${client.user.username} — COMMAND GUIDE (CONTINUED)\n`;
+        page = `${botName} — COMMAND GUIDE (CONTINUED)\n`;
       }
       page += `${page.endsWith('\n') ? '' : '\n'}${line}`;
     }
@@ -296,7 +298,7 @@
     pages.push(page);
     return pages.map((description, index) => new EmbedBuilder()
       .setColor(0x7564d8)
-      .setTitle(`${client.user.username} — Guide ${index + 1}/${pages.length}`)
+      .setTitle(`${botName} — Guide ${index + 1}/${pages.length}`)
       .setDescription(description)
       .setFooter({ text: 'Use /commands any time to get this guide in your DMs.' }));
   }
@@ -583,11 +585,13 @@
       messages.push(...batch.values());
       before = batch.last().id;
     }
+    const opener = messages.find(message => message.author.id === openerId)?.author;
+    const openerName = opener?.username || 'Unknown member';
     const transcript = [
       `Ticket transcript: ${channel.name}`,
       `Guild: ${channel.guild.name} (${guildId})`,
       `Category: ${ticketType(kind).label}`,
-      `Opened by: ${openerId}`,
+      `Opened by: ${openerName} (${openerId})`,
       `Captured: ${new Date().toISOString()}`,
       messages.length >= 1000 ? '[Transcript truncated at 1000 messages]' : '',
       '',
@@ -599,12 +603,17 @@
         return `[${message.createdAt.toISOString()}] ${message.author.tag}: ${detail || '[no text content]'}`;
       })
     ].join('\n');
-    const file = new AttachmentBuilder(Buffer.from(transcript, 'utf8'), {
+    const pdf = new AttachmentBuilder(await createPdfBuffer(transcript), {
+      name: `ticket-${channel.id}.pdf`
+    });
+    const text = new AttachmentBuilder(Buffer.from(transcript, 'utf8'), {
       name: `ticket-${channel.id}.txt`
     });
     await destination.send({
-      embeds: [createTextEmbed('Ticket transcript saved', `Transcript for <#${channel.id}> • opened by <@${openerId}>.`, null)],
-      files: [file]
+      content: `<@${openerId}> • **${openerName}**`,
+      allowedMentions: { users: [openerId] },
+      embeds: [createTextEmbed('Ticket transcript saved', `Transcript for <#${channel.id}> • applicant: **${openerName}**.`, null)],
+      files: [pdf, text]
     });
     return true;
   }
@@ -1171,7 +1180,7 @@
         }
         const embed = interaction.message.embeds[0]
           ? EmbedBuilder.from(interaction.message.embeds[0]).setFooter({
-            text: `Claimed by ${interaction.user.tag} • ${client.user.username} Support`
+            text: `Claimed by ${interaction.user.tag} • ${botName} Support`
           })
           : undefined;
         await interaction.update({
@@ -1822,23 +1831,30 @@
               [message.channelId, questions.length, JSON.stringify(answers), application.question_index]
             );
             if (!submitted.length) return;
-            const answersFile = new AttachmentBuilder(
-              Buffer.from([
-                `Staff application from ${message.author.tag} (${application.opener_id})`,
-                '',
-                formatApplicationAnswers(questions, answers)
-              ].join('\n'), 'utf8'),
+            const answersText = [
+              `Staff application from ${message.author.tag} (${application.opener_id})`,
+              '',
+              formatApplicationAnswers(questions, answers)
+            ].join('\n');
+            const answersPdf = new AttachmentBuilder(
+              await createPdfBuffer(answersText),
+              { name: `application-${message.channelId}.pdf` }
+            );
+            const answersTextFile = new AttachmentBuilder(
+              Buffer.from(answersText, 'utf8'),
               { name: `application-${message.channelId}.txt` }
             );
             try {
               await reviewChannel.send({
+                content: `<@${application.opener_id}> (**${message.author.username}**) submitted a staff application.`,
+                allowedMentions: { users: [application.opener_id] },
                 embeds: [createTextEmbed(
                   'Application ready for review',
-                  `Applicant: <@${application.opener_id}>\nSubmitted answers are attached. ${transcriptSaved ? `Full transcript: <#${settings.transcript_channel_id}>.` : 'No transcript archive channel is configured.'}`,
+                  `Applicant: **${message.author.username}** (<@${application.opener_id}>)\nQuestion-and-answer PDF attached. ${transcriptSaved ? `Full ticket transcript: <#${settings.transcript_channel_id}>.` : 'No transcript archive channel is configured.'}`,
                   null,
                   0x40b8a4
                 )],
-                files: [answersFile],
+                files: [answersPdf, answersTextFile],
                 components: [createApplicationReviewControls(message.channelId, application.opener_id)]
               });
             } catch (error) {
