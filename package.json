@@ -1,5 +1,5 @@
 {
-  "name": "sapphire-community-bot",
+  "name": "hawk-client",
   "version": "1.0.0",
   "private": true,
   "description": "A configurable Discord community bot designed for Railway.",
@@ -16,6 +16,7 @@
     "@discordjs/voice": "^0.19.2",
     "discord.js": "^14.19.3",
     "dotenv": "^16.4.7",
+    "pdfkit": "^0.20.2",
     "pg": "^8.13.3",
     "pg-mem": "^3.0.5",
     "play-dl": "^1.9.7"
