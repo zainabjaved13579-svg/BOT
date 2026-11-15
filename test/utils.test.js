@@ -12,6 +12,7 @@ const {
   levelForXp,
   memberHasBlockedRole,
   matchesWholePhrase,
+  parseAutomodTerms,
   shouldRemoveLink,
   xpForMessages,
   xpForNextLevel
@@ -59,6 +60,14 @@ test('application answers are paired with their questions for review', () => {
     ]),
     'Question 1: Why staff?\nAnswer: I can help.\n\nQuestion 2: Experience?\nAnswer: Two years.'
   );
+});
+
+test('bulk automod terms are trimmed, normalized and deduplicated case-insensitively', () => {
+  const terms = parseAutomodTerms('  Bad word , bad WORD\n\nAnother phrase  ');
+  assert.deepEqual(terms, ['bad word', 'another phrase']);
+  assert.equal(matchesWholePhrase('THIS IS A BAD WORD!', terms[0]), true);
+  assert.deepEqual(parseAutomodTerms(undefined), []);
+  assert.equal(parseAutomodTerms(Array.from({ length: 200 }, (_, index) => `word${index}`).join(',')).length, 200);
 });
 
 test('command grants and global command admin access authorize expected users', () => {
