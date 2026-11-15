@@ -35,6 +35,7 @@
     levelForXp,
     memberHasBlockedRole,
     matchesWholePhrase,
+    parseAutomodTerms,
     shouldRemoveLink,
     xpForMessages,
     xpForNextLevel
@@ -833,6 +834,34 @@
         const enabled = interaction.options.getBoolean('enabled');
         await updateGuildSettings(interaction.guildId, { links_enabled: enabled });
         await replyWithEmbed(interaction, 'Link filter updated', `Automatic link removal is now **${enabled ? 'enabled' : 'disabled'}**.`, { ephemeral: true });
+        return;
+      }
+      if (subcommand === 'add-words') {
+        const terms = parseAutomodTerms(interaction.options.getString('terms'));
+        if (!terms.length || terms.length > 200 || terms.some(term => term.length > 100)) {
+          await replyWithEmbed(
+            interaction,
+            'Invalid filter terms',
+            'Enter 1–200 non-empty terms, separated by commas or new lines. Each term can be at most 100 characters.',
+            { ephemeral: true }
+          );
+          return;
+        }
+        const values = [interaction.guildId];
+        const rows = terms.map((term, index) => {
+          values.push(term);
+          return `($1, $${index + 2})`;
+        });
+        const result = await pool.query(
+          `INSERT INTO automod_terms (guild_id, term) VALUES ${rows.join(', ')} ON CONFLICT DO NOTHING`,
+          values
+        );
+        await replyWithEmbed(
+          interaction,
+          'Filter terms added',
+          `Added **${result.rowCount}** new term${result.rowCount === 1 ? '' : 's'} (${terms.length - result.rowCount} already existed).`,
+          { ephemeral: true }
+        );
         return;
       }
       const term = interaction.options.getString('term').trim().toLocaleLowerCase();
