@@ -20,7 +20,7 @@ Without `DATABASE_URL`, the bot uses temporary in-memory storage; settings, tick
 - `/ticket block-role` and `/ticket unblock-role` to prevent or restore ticket creation for selected roles.
 - A built-in **Partnership** ticket category. Links are allowed in partnership tickets even when automatic link removal is enabled elsewhere.
 - Welcome and leave messages are opt-in: configure them with `/welcome setup` and `/leave setup`.
-- Case-insensitive automod, triggers, and auto-replies. Configure link removal with `/automod links`; members receive three warnings before a five-minute timeout.
+- Case-insensitive automod, triggers, and auto-replies. Add filter terms individually with `/automod add-word` or in bulk using `/automod add-words` (comma- or newline-separated, up to 200). Configure link removal with `/automod links`; members receive three warnings before a five-minute timeout.
 - Auto-role, scam phrase guard, and moderation log channel configuration.
 - `/kick`, `/ban`, `/nick`, `/say`, `/giveaway`, YouTube voice playback with `/play`, and `/stop`.
 - The configured global command admin (`1292815622413226035`) can use all commands in every server without server-owner status. Server owners can also grant command access to members or roles using `/permissions grant`. Moderation actions still require the bot itself to have the necessary Discord permissions and role hierarchy.
