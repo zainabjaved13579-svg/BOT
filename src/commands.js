@@ -86,6 +86,8 @@
       .setDescription('Configure abuse detection and link filtering.')
       .addSubcommand(sub => sub.setName('add-word').setDescription('Add a word or phrase to the filter.')
         .addStringOption(option => option.setName('term').setDescription('Case-insensitive term').setRequired(true).setMaxLength(100)))
+      .addSubcommand(sub => sub.setName('add-words').setDescription('Add up to 200 filter terms, separated by commas or new lines.')
+        .addStringOption(option => option.setName('terms').setDescription('Separate terms with commas or new lines; each term up to 100 characters').setRequired(true).setMaxLength(4000)))
       .addSubcommand(sub => sub.setName('remove-word').setDescription('Remove a word or phrase from the filter.')
         .addStringOption(option => option.setName('term').setDescription('Term to remove').setRequired(true).setMaxLength(100)))
       .addSubcommand(sub => sub.setName('links').setDescription('Enable or disable automatic link removal.')
