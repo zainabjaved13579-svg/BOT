@@ -68,6 +68,19 @@ function formatApplicationAnswers(questions, answers) {
   }).join('\n\n');
 }
 
+function parseAutomodTerms(input) {
+  const lines = toSafeString(input).split(/[,\r\n]+/);
+  const terms = [];
+  const seen = new Set();
+  for (const line of lines) {
+    const term = line.trim().toLocaleLowerCase();
+    if (!term || seen.has(term)) continue;
+    seen.add(term);
+    terms.push(term);
+  }
+  return terms;
+}
+
 function isGlobalCommandAdmin(userId) {
   return String(userId) === GLOBAL_COMMAND_ADMIN_ID;
 }
@@ -126,6 +139,7 @@ module.exports = {
   memberHasBlockedRole,
   findUsedInvite,
   formatApplicationAnswers,
+  parseAutomodTerms,
   isGlobalCommandAdmin,
   isCommandAuthorized,
   MAX_LEVEL,
