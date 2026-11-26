@@ -108,9 +108,11 @@ async function initializeDatabase() {
       theme_key TEXT NOT NULL,
       label TEXT NOT NULL,
       description TEXT NOT NULL,
+      emoji TEXT,
       questions JSONB NOT NULL DEFAULT '[]'::jsonb,
       PRIMARY KEY (guild_id, theme_key)
     );
+    ALTER TABLE ticket_themes ADD COLUMN IF NOT EXISTS emoji TEXT;
     CREATE TABLE IF NOT EXISTS ticket_blocked_roles (
       guild_id TEXT NOT NULL,
       role_id TEXT NOT NULL,
