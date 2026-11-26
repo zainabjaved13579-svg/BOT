@@ -25,6 +25,7 @@
   const { pool, initializeDatabase, getGuildSettings, updateGuildSettings } = require('./db');
   const { createTextEmbed } = require('./embeds');
   const { createPdfBuffer } = require('./pdf');
+  const { resolveYoutubeVideo } = require('./music');
   const {
     applyTemplate,
     findUsedInvite,
@@ -32,6 +33,7 @@
     getApplicationStep,
     isGlobalCommandAdmin,
     isCommandAuthorized,
+    createThemeKey,
     levelForXp,
     memberHasBlockedRole,
     matchesWholePhrase,
@@ -204,7 +206,7 @@
 
   async function postTicketPanel(channel, guildId) {
     const { rows: customThemes } = await pool.query(
-      'SELECT theme_key, label, description FROM ticket_themes WHERE guild_id = $1 ORDER BY label LIMIT 20',
+      'SELECT theme_key, label, description, emoji FROM ticket_themes WHERE guild_id = $1 ORDER BY label LIMIT 20',
       [guildId]
     );
     const embed = new EmbedBuilder()
@@ -240,7 +242,8 @@
           ...customThemes.map(theme => ({
             label: theme.label,
             description: theme.description,
-            value: theme.theme_key
+            value: theme.theme_key,
+            emoji: theme.emoji || undefined
           }))
         )
     );
@@ -703,13 +706,14 @@
         await postTicketPanel(channel, interaction.guildId);
         await replyWithEmbed(interaction, 'Ticket panel posted', `The public ticket panel is now available in ${channel}.`, { ephemeral: true });
       } else if (subcommand === 'theme-add') {
-        const key = interaction.options.getString('key').trim().toLowerCase();
-        const label = interaction.options.getString('label').trim();
+        const label = interaction.options.getString('name').trim();
         const description = interaction.options.getString('description').trim();
+        const emoji = interaction.options.getString('emoji').trim();
+        const key = createThemeKey(label);
         const questions = (interaction.options.getString('questions') || '')
           .split(/\r?\n/).map(question => question.trim()).filter(Boolean);
-        if (!/^[a-z0-9_-]{1,20}$/.test(key) || ['staff_application', 'player_report', 'general_support', 'partnership', 'bug_report'].includes(key) || !label || !description || questions.length > 20) {
-          await replyWithEmbed(interaction, 'Invalid ticket theme', 'Use a key of 1–20 letters, numbers, underscores, or hyphens; enter a label, description, and no more than 20 questions.', { ephemeral: true });
+        if (!label || !description || !emoji || questions.length > 20) {
+          await replyWithEmbed(interaction, 'Invalid ticket theme', 'Enter a name, description, emoji, and no more than 20 questions.', { ephemeral: true });
           return;
         }
         const { rows: themes } = await pool.query(
@@ -725,20 +729,22 @@
           return;
         }
         await pool.query(
-          `INSERT INTO ticket_themes (guild_id, theme_key, label, description, questions)
-          VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO ticket_themes (guild_id, theme_key, label, description, emoji, questions)
+          VALUES ($1, $2, $3, $4, $5, $6)
           ON CONFLICT (guild_id, theme_key) DO UPDATE
-          SET label = EXCLUDED.label, description = EXCLUDED.description, questions = EXCLUDED.questions`,
-          [interaction.guildId, key, label, description, JSON.stringify(questions)]
+          SET label = EXCLUDED.label, description = EXCLUDED.description, emoji = EXCLUDED.emoji,
+            questions = EXCLUDED.questions`,
+          [interaction.guildId, key, label, description, emoji, JSON.stringify(questions)]
         );
-        await replyWithEmbed(interaction, 'Ticket theme saved', `Saved **${label}**. Post a new /ticket panel to publish the updated list.`, { ephemeral: true });
+        await replyWithEmbed(interaction, 'Ticket theme saved', `Saved ${emoji} **${label}**. Post a new /ticket panel to publish the updated list.`, { ephemeral: true });
       } else if (subcommand === 'theme-remove') {
-        const key = interaction.options.getString('key').trim().toLowerCase();
+        const name = interaction.options.getString('name').trim();
+        const key = createThemeKey(name);
         const result = await pool.query(
           'DELETE FROM ticket_themes WHERE guild_id = $1 AND theme_key = $2',
           [interaction.guildId, key]
         );
-        await replyWithEmbed(interaction, result.rowCount ? 'Ticket theme removed' : 'Ticket theme not found', result.rowCount ? `Removed \`${key}\`. Repost the ticket panel to update it.` : `No custom theme \`${key}\` was found.`, { ephemeral: true });
+        await replyWithEmbed(interaction, result.rowCount ? 'Ticket theme removed' : 'Ticket theme not found', result.rowCount ? `Removed **${name}**. Repost the ticket panel to update it.` : `No custom theme named **${name}** was found.`, { ephemeral: true });
       } else if (subcommand === 'block-role' || subcommand === 'unblock-role') {
         const role = interaction.options.getRole('role');
         if (subcommand === 'block-role') {
@@ -1555,36 +1561,25 @@
     }
 
     if (commandName === 'play') {
-      const voiceChannel = interaction.member.voice.channel;
+      const voiceChannel = interaction.member?.voice?.channel;
       if (!voiceChannel) {
         await replyWithEmbed(interaction, 'Join a voice channel', 'Join a voice channel before starting music.', { ephemeral: true });
         return;
       }
-      const url = interaction.options.getString('url').trim();
-      let parsedUrl;
-      try {
-        parsedUrl = new URL(url);
-      } catch {
-        await replyWithEmbed(interaction, 'Invalid URL', 'Provide a complete audio or video URL.', { ephemeral: true });
-        return;
-      }
-      const youtubeHosts = new Set(['youtube.com', 'www.youtube.com', 'music.youtube.com', 'm.youtube.com', 'youtu.be']);
-      if (!['http:', 'https:'].includes(parsedUrl.protocol) || parsedUrl.username || parsedUrl.password ||
-          !youtubeHosts.has(parsedUrl.hostname.toLowerCase())) {
-        await replyWithEmbed(interaction, 'Unsupported URL', 'Only public YouTube video links are supported.', { ephemeral: true });
-        return;
-      }
-      const voicePermissions = voiceChannel.permissionsFor(interaction.guild.members.me);
+      const voicePermissions = voiceChannel.permissionsFor(
+        interaction.guild.members.me || await interaction.guild.members.fetchMe()
+      );
       if (!voicePermissions?.has([PermissionFlagsBits.Connect, PermissionFlagsBits.Speak])) {
         await replyWithEmbed(interaction, 'Missing voice permissions', 'I need Connect and Speak permissions in your voice channel.', { ephemeral: true });
         return;
       }
       await interaction.deferReply({ ephemeral: true });
+      const song = await resolveYoutubeVideo(interaction.options.getString('song'));
+      const stream = await play.stream(song.url);
       const previous = musicPlayers.get(interaction.guildId);
       musicPlayers.delete(interaction.guildId);
       previous?.player.stop();
       previous?.connection.destroy();
-      const stream = await play.stream(parsedUrl.href);
       const connection = joinVoiceChannel({
         channelId: voiceChannel.id,
         guildId: interaction.guildId,
@@ -1600,11 +1595,20 @@
       const player = createAudioPlayer({
         behaviors: { noSubscriber: NoSubscriberBehavior.Pause }
       });
+      let playbackStarted = false;
       player.once('error', error => {
         console.error(`Voice playback failed in guild ${interaction.guildId}:`, error);
         if (musicPlayers.get(interaction.guildId)?.player === player) {
           musicPlayers.delete(interaction.guildId);
           connection.destroy();
+          if (playbackStarted) {
+            replyWithEmbed(
+              interaction,
+              'Playback failed',
+              'The selected song could not be played. Try another YouTube result or check the host’s voice/audio support.',
+              { ephemeral: true }
+            ).catch(replyError => console.error('Unable to report voice playback failure:', replyError));
+          }
         }
       });
       player.once(AudioPlayerStatus.Idle, () => {
@@ -1616,7 +1620,23 @@
       connection.subscribe(player);
       player.play(createAudioResource(stream.stream, { inputType: stream.type }));
       musicPlayers.set(interaction.guildId, { connection, player, channelId: voiceChannel.id });
-      await replyWithEmbed(interaction, 'Now playing', `Connected to ${voiceChannel} and started playback.`, { ephemeral: true });
+      try {
+        await entersState(player, AudioPlayerStatus.Playing, 15_000);
+        playbackStarted = true;
+      } catch (error) {
+        if (musicPlayers.get(interaction.guildId)?.player === player) {
+          musicPlayers.delete(interaction.guildId);
+        }
+        player.stop();
+        connection.destroy();
+        throw new Error(`The song stream did not start playing: ${error.message}`);
+      }
+      await replyWithEmbed(
+        interaction,
+        'Now playing',
+        `**${song.title || 'YouTube video'}**\n${song.url}\nConnected to ${voiceChannel}.`,
+        { ephemeral: true }
+      );
       return;
     }
 
