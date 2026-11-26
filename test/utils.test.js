@@ -6,6 +6,7 @@ const {
   XP_PER_MESSAGE,
   findUsedInvite,
   formatApplicationAnswers,
+  createThemeKey,
   getApplicationStep,
   isGlobalCommandAdmin,
   isCommandAuthorized,
@@ -68,6 +69,14 @@ test('bulk automod terms are trimmed, normalized and deduplicated case-insensiti
   assert.equal(matchesWholePhrase('THIS IS A BAD WORD!', terms[0]), true);
   assert.deepEqual(parseAutomodTerms(undefined), []);
   assert.equal(parseAutomodTerms(Array.from({ length: 200 }, (_, index) => `word${index}`).join(',')).length, 200);
+});
+
+test('ticket theme keys are generated from names without needing user-supplied values', () => {
+  const first = createThemeKey('YouTube Creator');
+  assert.match(first, /^youtube-crea-[a-f0-9]{8}$/);
+  assert.equal(createThemeKey('YouTube Creator'), first);
+  assert.notEqual(createThemeKey('Other Theme'), first);
+  assert.match(createThemeKey('حمایت'), /^theme-[a-f0-9]{8}$/);
 });
 
 test('command grants and global command admin access authorize expected users', () => {
