@@ -1,3 +1,5 @@
+const { createHash } = require('node:crypto');
+
 const MAX_LEVEL = 100;
 const MAX_LEVEL_XP = MAX_LEVEL ** 2 * 100;
 const XP_PER_MESSAGE = 10;
@@ -81,6 +83,17 @@ function parseAutomodTerms(input) {
   return terms;
 }
 
+function createThemeKey(name) {
+  const normalizedName = toSafeString(name).normalize('NFKD').toLocaleLowerCase().trim();
+  const slug = normalizedName
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 11) || 'theme';
+  const suffix = createHash('sha256').update(normalizedName).digest('hex').slice(0, 8);
+  return `${slug}-${suffix}`;
+}
+
 function isGlobalCommandAdmin(userId) {
   return String(userId) === GLOBAL_COMMAND_ADMIN_ID;
 }
@@ -140,6 +153,7 @@ module.exports = {
   findUsedInvite,
   formatApplicationAnswers,
   parseAutomodTerms,
+  createThemeKey,
   isGlobalCommandAdmin,
   isCommandAuthorized,
   MAX_LEVEL,
